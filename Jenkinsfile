@@ -29,28 +29,24 @@ pipeline {
                 bat '''
                     @echo off
 
-                    REM 1. Kill ONLY Tomcat by port 8080 (not all java.exe!)
-                    set TOMCAT_PID=
-                    for /f "tokens=5" %%a in ('netstat -ano ^| findstr "0.0.0.0:8080" ^| findstr "LISTENING"') do set TOMCAT_PID=%%a
-                    if defined TOMCAT_PID (
-                        echo Killing Tomcat PID: %TOMCAT_PID%
-                        taskkill /F /PID %TOMCAT_PID%
-                    ) else (
-                        echo Tomcat not running, skipping kill
+                    REM 1. Kill existing Tomcat process
+                    for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8080 ^| findstr LISTENING') do (
+                        echo Killing PID %%a
+                        taskkill /F /PID %%a 2>nul
                     )
                     timeout /t 5 /nobreak
 
                     REM 2. Clean old WAR and exploded folders
-                    del /F /Q "%TOMCAT_HOME%\\webapps\\%DEPLOY_NAME%" 2>nul
+                    del /F /Q "%TOMCAT_HOME%\\webapps\\demo.war" 2>nul
                     rmdir /S /Q "%TOMCAT_HOME%\\webapps\\demo" 2>nul
                     del /F /Q "%TOMCAT_HOME%\\webapps\\demo-0.0.1-SNAPSHOT.war" 2>nul
                     rmdir /S /Q "%TOMCAT_HOME%\\webapps\\demo-0.0.1-SNAPSHOT" 2>nul
 
-                    REM 3. Copy exact WAR file
+                    REM 3. Copy new WAR
                     copy /Y "target\\%WAR_NAME%" "%TOMCAT_HOME%\\webapps\\%DEPLOY_NAME%"
 
                     REM 4. Verify WAR size
-                    for %%A in ("%TOMCAT_HOME%\\webapps\\%DEPLOY_NAME%") do (
+                    for %%A in ("%TOMCAT_HOME%\\webapps\\demo.war") do (
                         echo WAR size: %%~zA bytes
                         if %%~zA LSS 1000000 (
                             echo ERROR: WAR file too small!
@@ -58,10 +54,10 @@ pipeline {
                         )
                     )
 
-                    REM 5. Start Tomcat detached from Jenkins
+                    REM 5. Start Tomcat DETACHED from Jenkins process
                     start "" /B cmd /c "%TOMCAT_HOME%\\bin\\startup.bat"
 
-                    echo Deploy successful!
+                    echo Tomcat started successfully!
                 '''
             }
         }
