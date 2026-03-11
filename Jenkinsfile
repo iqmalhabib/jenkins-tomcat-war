@@ -6,9 +6,9 @@ pipeline {
     }
 
     environment {
-        TOMCAT_HOME  = 'C:\\tomcat10.1'
-        WAR_NAME     = 'demo-0.0.1-SNAPSHOT.war'
-        DEPLOY_NAME  = 'demo.war'
+        TOMCAT_HOME = 'C:\\tomcat10.1'
+        WAR_NAME    = 'demo-0.0.1-SNAPSHOT.war'
+        DEPLOY_NAME = 'demo.war'
     }
 
     stages {
@@ -29,8 +29,15 @@ pipeline {
                 bat '''
                     @echo off
 
-                    REM 1. Kill java.exe (Tomcat runs as java.exe)
-                    taskkill /F /IM java.exe /T 2>nul
+                    REM 1. Kill ONLY Tomcat by port 8080 (not all java.exe!)
+                    set TOMCAT_PID=
+                    for /f "tokens=5" %%a in ('netstat -ano ^| findstr "0.0.0.0:8080" ^| findstr "LISTENING"') do set TOMCAT_PID=%%a
+                    if defined TOMCAT_PID (
+                        echo Killing Tomcat PID: %TOMCAT_PID%
+                        taskkill /F /PID %TOMCAT_PID%
+                    ) else (
+                        echo Tomcat not running, skipping kill
+                    )
                     timeout /t 5 /nobreak
 
                     REM 2. Clean old WAR and exploded folders
@@ -39,7 +46,7 @@ pipeline {
                     del /F /Q "%TOMCAT_HOME%\\webapps\\demo-0.0.1-SNAPSHOT.war" 2>nul
                     rmdir /S /Q "%TOMCAT_HOME%\\webapps\\demo-0.0.1-SNAPSHOT" 2>nul
 
-                    REM 3. Copy exact WAR file (not wildcard)
+                    REM 3. Copy exact WAR file
                     copy /Y "target\\%WAR_NAME%" "%TOMCAT_HOME%\\webapps\\%DEPLOY_NAME%"
 
                     REM 4. Verify WAR size
