@@ -6,8 +6,7 @@ pipeline {
     }
 
     environment {
-        TOMCAT_HOME   = 'C:\\tomcat10.1'
-        CATALINA_HOME = 'C:\\tomcat10.1'
+        TOMCAT_HOME = 'C:\\tomcat10.1'
     }
 
     stages {
@@ -20,12 +19,6 @@ pipeline {
         stage('Build') {
             steps {
                 bat 'mvn clean package -DskipTests'
-
-                // Verify WAR was built correctly
-                bat '''
-                    echo === Built WAR files ===
-                    dir target\\*.war
-                '''
             }
         }
 
@@ -34,39 +27,35 @@ pipeline {
                 bat '''
                     @echo off
 
-                    REM 1. Shutdown Tomcat
-                    set CATALINA_HOME=C:\\tomcat10.1
-                    call %TOMCAT_HOME%\\bin\\shutdown.bat
-                    timeout /t 10 /nobreak
-
-                    REM 2. Force kill java process running Tomcat
-                    for /f "tokens=5" %%a in ('netstat -aon ^| find ":8080" ^| find "LISTENING"') do (
-                        echo Killing PID %%a on port 8080
+                    REM 1. Kill existing Tomcat process
+                    for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8080 ^| findstr LISTENING') do (
+                        echo Killing PID %%a
                         taskkill /F /PID %%a 2>nul
                     )
-                    timeout /t 3 /nobreak
+                    timeout /t 5 /nobreak
 
-                    REM 3. Clean old deployments
+                    REM 2. Clean old WAR and exploded folders
                     del /F /Q "%TOMCAT_HOME%\\webapps\\demo.war" 2>nul
                     rmdir /S /Q "%TOMCAT_HOME%\\webapps\\demo" 2>nul
                     del /F /Q "%TOMCAT_HOME%\\webapps\\demo-0.0.1-SNAPSHOT.war" 2>nul
                     rmdir /S /Q "%TOMCAT_HOME%\\webapps\\demo-0.0.1-SNAPSHOT" 2>nul
 
-                    REM 4. Copy WAR - explicit filename
-                    copy /Y "target\\demo-0.0.1-SNAPSHOT.war" "%TOMCAT_HOME%\\webapps\\demo.war"
+                    REM 3. Copy new WAR
+                    copy /Y target\\*.war "%TOMCAT_HOME%\\webapps\\demo.war"
 
-                    REM 5. Verify size
+                    REM 4. Verify WAR size
                     for %%A in ("%TOMCAT_HOME%\\webapps\\demo.war") do (
-                        echo Copied WAR size: %%~zA bytes
+                        echo WAR size: %%~zA bytes
                         if %%~zA LSS 1000000 (
                             echo ERROR: WAR file too small!
                             exit /b 1
                         )
                     )
 
-                    REM 6. Start Tomcat
-                    call %TOMCAT_HOME%\\bin\\startup.bat
-                    echo Tomcat started!
+                    REM 5. Start Tomcat DETACHED from Jenkins process
+                    start "" /B cmd /c "%TOMCAT_HOME%\\bin\\startup.bat"
+
+                    echo Tomcat started successfully!
                 '''
             }
         }
