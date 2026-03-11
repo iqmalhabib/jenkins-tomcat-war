@@ -29,7 +29,7 @@ pipeline {
                 bat '''
                     @echo off
 
-                    REM 1. Kill Tomcat on port 8080 (using temp file to avoid pipe issue)
+                    REM 1. Kill Tomcat on port 8080
                     netstat -ano > "%TEMP%\\netstat_out.txt"
                     findstr "0.0.0.0:8080" "%TEMP%\\netstat_out.txt" > "%TEMP%\\port8080.txt"
                     for /f "tokens=5" %%a in (%TEMP%\\port8080.txt) do (
@@ -58,8 +58,10 @@ pipeline {
                         )
                     )
 
-                    REM 5. Start Tomcat detached from Jenkins
-                    start "" /B cmd /c "%TOMCAT_HOME%\\bin\\startup.bat"
+                    REM 5. Start Tomcat detached — explicitly set CATALINA_HOME
+                    set CATALINA_HOME=%TOMCAT_HOME%
+                    set CATALINA_BASE=%TOMCAT_HOME%
+                    start "" /B cmd /c "set CATALINA_HOME=%TOMCAT_HOME% && set CATALINA_BASE=%TOMCAT_HOME% && %TOMCAT_HOME%\\bin\\startup.bat"
 
                     echo Deploy successful!
                 '''
