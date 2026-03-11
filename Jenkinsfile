@@ -6,9 +6,9 @@ pipeline {
     }
 
     environment {
-        TOMCAT_HOME = 'C:\\tomcat10.1'
-        WAR_NAME    = 'demo-0.0.1-SNAPSHOT.war'
-        DEPLOY_NAME = 'demo.war'
+        TOMCAT_HOME  = 'C:\\tomcat10.1'
+        WAR_NAME     = 'demo-0.0.1-SNAPSHOT.war'
+        DEPLOY_NAME  = 'demo.war'
     }
 
     stages {
@@ -24,32 +24,37 @@ pipeline {
             }
         }
 
+        stage('Kill Tomcat') {
+            steps {
+                // Separate bat block — crash here won't affect deploy
+                bat '''
+                    @echo off
+                    netstat -ano > "%TEMP%\\netstat_out.txt"
+                    findstr "0.0.0.0:8080" "%TEMP%\\netstat_out.txt" > "%TEMP%\\port8080.txt"
+                    for /f "tokens=5" %%a in (%TEMP%\\port8080.txt) do taskkill /F /PID %%a 2>nul
+                    del /Q "%TEMP%\\netstat_out.txt" 2>nul
+                    del /Q "%TEMP%\\port8080.txt" 2>nul
+                    timeout /t 5 /nobreak
+                    exit /b 0
+                '''
+            }
+        }
+
         stage('Deploy to Tomcat') {
             steps {
                 bat '''
                     @echo off
 
-                    REM 1. Kill Tomcat on port 8080
-                    netstat -ano > "%TEMP%\\netstat_out.txt"
-                    findstr "0.0.0.0:8080" "%TEMP%\\netstat_out.txt" > "%TEMP%\\port8080.txt"
-                    for /f "tokens=5" %%a in (%TEMP%\\port8080.txt) do (
-                        echo Killing PID %%a
-                        taskkill /F /PID %%a 2>nul
-                    )
-                    del /Q "%TEMP%\\netstat_out.txt" 2>nul
-                    del /Q "%TEMP%\\port8080.txt" 2>nul
-                    timeout /t 5 /nobreak
-
-                    REM 2. Clean old WAR and exploded folders
+                    REM 1. Clean old WAR and exploded folders
                     del /F /Q "%TOMCAT_HOME%\\webapps\\%DEPLOY_NAME%" 2>nul
                     rmdir /S /Q "%TOMCAT_HOME%\\webapps\\demo" 2>nul
                     del /F /Q "%TOMCAT_HOME%\\webapps\\demo-0.0.1-SNAPSHOT.war" 2>nul
                     rmdir /S /Q "%TOMCAT_HOME%\\webapps\\demo-0.0.1-SNAPSHOT" 2>nul
 
-                    REM 3. Copy exact WAR file
+                    REM 2. Copy exact WAR file
                     copy /Y "target\\%WAR_NAME%" "%TOMCAT_HOME%\\webapps\\%DEPLOY_NAME%"
 
-                    REM 4. Verify WAR size
+                    REM 3. Verify WAR size
                     for %%A in ("%TOMCAT_HOME%\\webapps\\%DEPLOY_NAME%") do (
                         echo WAR size: %%~zA bytes
                         if %%~zA LSS 1000000 (
@@ -58,10 +63,10 @@ pipeline {
                         )
                     )
 
-                    REM 5. Start Tomcat detached — explicitly set CATALINA_HOME
+                    REM 4. Start Tomcat with CATALINA_HOME explicitly set
                     set CATALINA_HOME=%TOMCAT_HOME%
                     set CATALINA_BASE=%TOMCAT_HOME%
-                    start "" /B cmd /c "set CATALINA_HOME=%TOMCAT_HOME% && set CATALINA_BASE=%TOMCAT_HOME% && %TOMCAT_HOME%\\bin\\startup.bat"
+                    start "" /B cmd /c "set CATALINA_HOME=%TOMCAT_HOME%&& set CATALINA_BASE=%TOMCAT_HOME%&& %TOMCAT_HOME%\\bin\\startup.bat"
 
                     echo Deploy successful!
                 '''
