@@ -33,7 +33,7 @@
 <body>
     <div class="box">
         <h1>${message}</h1>
-        <p>Deployed successfully as a WAR on Apache Tomcat 🎉 - test using jenkins berjaya 3</p>
+        <p>Deployed successfully as a WAR on Apache Tomcat 🎉 - test using jenkins berjaya 12/3</p>
     </div>
 </body>
 </html>
